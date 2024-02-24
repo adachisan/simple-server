@@ -5,13 +5,12 @@ using System.Text;
 public class HttpServer
 {
     public HttpListener Server;
-    public Action<string>? OnMessage = null;
-    public string Text = "";
+    public Func<string, string>? OnMessage = null;
 
     public HttpServer(params string[] _prefixes)
     {
         Server = new HttpListener();
-        _prefixes = _prefixes.Length == 0 ? new string[] { "http://+:5000/" } : _prefixes;
+        _prefixes = _prefixes.Length == 0 ? new[] { "http://127.0.0.1:3000/" } : _prefixes;
         _prefixes.ToList().ForEach(i => Server.Prefixes.Add(i));
     }
 
@@ -30,6 +29,7 @@ public class HttpServer
     void Running()
     {
         Console.WriteLine("[HttpServer] Started running...");
+        Console.WriteLine(string.Join(",", Server.Prefixes));
 
         while (Server.IsListening)
         {
@@ -39,18 +39,17 @@ public class HttpServer
 
                 var request = context.Request;
                 using var input = request.InputStream;
-                using var reader = new StreamReader(input, Encoding.UTF8);
-                OnMessage?.Invoke(reader.ReadToEnd());
-                // var buffer = new byte[4096];
-                // input.Read(buffer, 0, buffer.Length);
-                // OnMessage?.Invoke(Encoding.UTF8.GetString(buffer));
+
+                var buffer = new byte[input.Length];
+                input.Read(buffer, 0, buffer.Length);
+                var requestBody = Encoding.UTF8.GetString(buffer);
 
                 using var response = context.Response;
                 using var output = response.OutputStream;
-                using var writer = new StreamWriter(output, Encoding.UTF8);
-                writer.Write(Text);
-                // sendBuffer = Encoding.UTF8.GetBytes(Text);
-                // output?.Write(sendBuffer, 0, sendBuffer.Length);
+
+                var responseBody = OnMessage?.Invoke(requestBody) ?? "";
+                var sendBuffer = Encoding.UTF8.GetBytes(responseBody);
+                output?.Write(sendBuffer, 0, sendBuffer.Length);
             }
             catch (Exception e) { Console.WriteLine($"[HttpServer] {e.Message}"); }
         }
